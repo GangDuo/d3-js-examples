@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <title></title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+<style>
+body {
+  margin: 0 14px;
+  font-family: "Source Serif Pro",Iowan Old Style,Apple Garamond,Palatino Linotype,Times New Roman,"Droid Serif",Times,serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol;
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  color: #1b1e23;
+}
+
+#app {
+  margin-left: 21px;
+  margin-right: 21px;
+}
+
+/* グラフ凡例 */
+.graph-legend {
+  margin-bottom: 17px;
+}
+.graph-legend .graph-legend-wrapper {
+  display: flex;
+  align-items: center;
+  min-height: 33px;
+  margin-left: 0px;
+  font: 10px sans-serif;
+}
+.graph-legend .binary {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 1em;
+}
+.graph-legend .binary::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  margin-right: 0.5em;
+  background: var(--color);
+}
+</style>
+</head>
+<body>
+<main class="main-content">
+  <div class="observablehq" dir="auto" style="margin-bottom: 17px;">
+    <form style="font: 12px var(--sans-serif); font-variant-numeric: tabular-nums; display: flex; height: 33px; align-items: center;">
+      <button name="b" type="button" style="margin-right: 0.4em; width: 5em;">Play</button>
+      <label style="display: flex; align-items: center;">
+        <input name="i" type="range" min="0" max="178" value="0" step="1" style="width: 180px;">
+        <output name="o" style="margin-left: 0.4em;">1862</output>
+      </label>
+    </form>
+  </div>
+
+  <div class="graph-legend" dir="auto">
+    <div class="graph-legend-wrapper">
+      <div>
+        <span class="binary" style="--color: #4e79a7">Male</span>
+        <span class="binary" style="--color: #e15759">Female</span>
+      </div>
+    </div>
+  </div>
+  <div id="app" class="svg-container" />
+</main>
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/4.1.2/papaparse.min.js"></script>
+<script src="https://d3js.org/d3.v6.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.15/lodash.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.27.0/moment.min.js" integrity="sha512-rmZcZsyhe0/MAjquhTgiUcb4d9knaFc7b5xAfju483gbEXTkeJRUMIPk6s3ySZMYUHEcjKbjLjyddGWMrNEvZg==" crossorigin="anonymous"></script>
+<script>
+(async () => {
+  var year = 1842,
+      width = 1000,
+      height = 500,
+      margin = ({top: 20, right: 30, bottom: 34, left: 0});
+
+  const csv = await fetch("http://127.0.0.1:8080/icelandic-population.csv")
+    .then(response => {
+      if (response.ok) {
+        return response.text();
+      } else {
+        return Promise.reject(new Error('エラーです！'));
+      }
+    })
+
+  const delay = 250
+  const data = Object.assign(d3.csvParse(csv, d3.autoType), {x: "← Age", y: "Population ↑"})
+  const yearMin = d3.min(data, d => d.year)
+  const yearStep = 1
+
+  const x = d3.scaleBand()
+      .domain(Array.from(d3.group(data, d => d.age).keys()).sort(d3.ascending))
+      .range([width - margin.right, margin.left])
+  const y = d3.scaleLinear()
+      .domain([0, d3.max(data, d => d.value)])
+      .range([height - margin.bottom, margin.top])
+  const color = d3.scaleOrdinal(["M", "F"], ["#4e79a7", "#e15759"])
+  const xAxis = g => g
+      .attr("transform", `translate(0,${height - margin.bottom})`)
+      .call(d3.axisBottom(x)
+          .tickValues(d3.ticks(...d3.extent(data, d => d.age), width / 40))
+          .tickSizeOuter(0))
+      .call(g => g.append("text")
+          .attr("x", margin.right)
+          .attr("y", margin.bottom - 4)
+          .attr("fill", "currentColor")
+          .attr("text-anchor", "end")
+          .text(data.x))
+
+  const yAxis = g => g
+      .attr("transform", `translate(${width - margin.right},0)`)
+      .call(d3.axisRight(y).ticks(null, "s"))
+      .call(g => g.select(".domain").remove())
+      .call(g => g.append("text")
+          .attr("x", margin.right)
+          .attr("y", 10)
+          .attr("fill", "currentColor")
+          .attr("text-anchor", "end")
+          .text(data.y))
+
+  chart = (_=>{
+    const svg = d3.select("#app").append("svg")
+  //  const svg = d3.create("svg")
+        // レスポンシブ対応（SVG自体を拡大縮小する）
+        .attr("preserveAspectRatio", "xMidYMid meet")
+        .attr("viewBox", [0, 0, width, height])
+        .classed("svg-content", true)
+
+    svg.append("g")
+        .call(xAxis);
+
+    svg.append("g")
+        .call(yAxis);
+
+    const group = svg.append("g");
+
+    let rect = group.selectAll("rect");
+
+    return Object.assign(svg.node(), {
+      update(year) {
+        const dx = x.step() * (year - yearMin) / yearStep;
+
+        const t = svg.transition()
+            .ease(d3.easeLinear)
+            .duration(delay);
+
+        rect = rect
+          .data(data.filter(d => d.year === year), d => `${d.sex}:${d.year - d.age}`)
+          .join(
+            enter => enter.append("rect")
+              .style("mix-blend-mode", "darken")
+              .attr("fill", d => color(d.sex))
+              .attr("x", d => x(d.age) + dx)
+              .attr("y", d => y(0))
+              .attr("width", x.bandwidth() + 1)
+              .attr("height", 0),
+            update => update,
+            exit => exit.call(rect => rect.transition(t).remove()
+              .attr("y", y(0))
+              .attr("height", 0))
+          );
+
+        rect.transition(t)
+            .attr("y", d => y(d.value))
+            .attr("height", d => y(0) - y(d.value));
+
+        group.transition(t)
+            .attr("transform", `translate(${-dx},0)`);
+      }
+    });
+  })()
+
+  let nIntervId
+  document.querySelector('form button').addEventListener('click', (e) => {
+    if(e.target.textContent === "Play") {
+      e.target.textContent = "Pause"
+      nIntervId = setInterval(() => {
+        if(year > 2019) {
+          clearInterval(nIntervId);
+          return
+        }
+        chart.update(year)
+        document.querySelector('form label input').value = Number(document.querySelector('form label input').value) + 1
+        document.querySelector('form label output').textContent = year
+        year++
+      }, 100)
+
+    } else {
+      e.target.textContent = "Play"
+      clearInterval(nIntervId);
+    }
+  })
+})()
+</script>
+</body>
+</html>
